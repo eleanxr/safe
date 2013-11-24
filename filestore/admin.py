@@ -1,5 +1,5 @@
 from django.contrib import admin
-from filestore.models import UserData, EncryptedUserFile
+from filestore.models import UserData, EncryptedFileContent
 
 admin.site.register(UserData)
-admin.site.register(EncryptedUserFile)
+admin.site.register(EncryptedFileContent)
