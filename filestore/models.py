@@ -21,4 +21,7 @@ class EncryptedFileContent(models.Model):
     user = models.ForeignKey(User)
     metadata = models.ForeignKey(FileMetadata)
     data_store = models.FileField(upload_to=choose_file_name)
+    
+    def __unicode__(self):
+        return self.metadata.filename;
 

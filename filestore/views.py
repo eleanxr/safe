@@ -57,6 +57,15 @@ def do_login(request):
         return HttpResponse("Invalid username or password")
 
 @login_required
+def list_files(request):
+    file_list = EncryptedFileContent.objects.filter(user=request.user)
+    context = {
+        'user': request.user,
+        'file_list': file_list,
+        }
+    return render(request, 'filestore/filelist.html', context)
+
+@login_required
 def userinfo(request):
     return HttpResponse("Information for user %s" % request.user)
 

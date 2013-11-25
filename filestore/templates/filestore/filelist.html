@@ -1,0 +1,14 @@
+{% if file_list %}
+<h1>{{ user }} Files</h1>
+
+<ul>
+  {% for file in file_list %}
+  <li><a href="{{ file.url  }}">{{ file.metadata.filename }}</a></li>
+  {% endfor %}
+</ul>
+
+{% else %}
+
+{{ user }} has stored no files
+
+{% endif %}
