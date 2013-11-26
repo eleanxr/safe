@@ -9,7 +9,8 @@ from django.http import HttpResponse, HttpResponseRedirect
 
 from django.views.decorators.csrf import csrf_exempt
 
-from filestore.models import UserData, FileMetadata, EncryptedFileContent
+from filestore.models import PublicKeyFile, FileMetadata, EncryptedFileContent
+from filestore.forms import FileUploadForm
 
 from functools import wraps
 
@@ -50,7 +51,7 @@ def do_login(request):
     if user:
         if user.is_active:
             login(request, user)
-            return HttpResponseRedirect(reverse('filestore:userinfo'))
+            return HttpResponseRedirect(reverse('filestore:list_files'))
         else:
             return HttpResponse("User %s is not active" % user)
     else:
@@ -88,15 +89,42 @@ def handle_key_upload(user, keyfile):
 @csrf_exempt # Probably not a great idea, but here for now.
 def upload_file(request):
     if request.method == 'POST':
-        filename = request.POST['filename']
-        metadata = FileMetadata(filename=filename)
-        metadata.save()
-        data = EncryptedFileContent(
-            user=request.user,
-            metadata=metadata,
-            data_store=request.FILES['file']
-        )
-        data.save()
-        return HttpResponse('Data uploaded')
+        form = FileUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            return __handle_upload(request)
     else:
-        return HttpResponse('This method accepts only POST data')
+        form = FileUploadForm()
+    return render(request, 'filestore/upload.html', {
+        'form': form
+    }) 
+
+def __handle_upload(request):
+    filename = request.FILES['encrypted_content'].name
+    digest = request.POST['digest']
+    digest_algorithm = request.POST['digest_algorithm']
+    
+    file_exists = FileMetadata.objects.filter(
+        digest_algorithm=digest_algorithm,
+        digest=digest
+    )
+
+    # If we already have an entry for that digest, don't replicate it
+    if file_exists:
+        return HttpResponse(content="Object exists", status_code=302)
+
+    # A file of that digest/algorithm combination doesn't exist.
+    metadata = FileMetadata(
+        filename=filename,
+        digest=digest,
+        digest_algorithm=digest_algorithm
+    )
+
+    metadata.save()
+    
+    data = EncryptedFileContent(
+        user=request.user,
+        metadata=metadata,
+        data_store=request.FILES['encrypted_content']
+    )
+    data.save()
+    return HttpResponse('Data uploaded')
