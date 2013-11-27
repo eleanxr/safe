@@ -84,3 +84,5 @@ STATIC_URL = '/static/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'files')
 MEDIA_URL = '/download/'
+
+LOGIN_URL = '/login'
