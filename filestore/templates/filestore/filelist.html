@@ -1,9 +1,9 @@
-{% if file_list %}
+{% if files %}
 <h1>{{ user }} Files</h1>
 
 <ul>
-  {% for file in file_list %}
-  <li><a href="{{ file.url  }}">{{ file.metadata.filename }}</a></li>
+  {% for file in files %}
+  <li>{{ file.path }} ({{ file.plaintext_digest }}) <a href='{{ file.download_url }}'>Download</a></li>
   {% endfor %}
 </ul>
 
@@ -12,3 +12,7 @@
 {{ user }} has stored no files
 
 {% endif %}
+
+<p>
+<a href="{% url 'filestore:upload' %}">Upload new file</a>
+</p>

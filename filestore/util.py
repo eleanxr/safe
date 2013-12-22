@@ -1,6 +1,8 @@
 
 from functools import wraps
 
+import hashlib
+
 def http_basic_auth(func):
     """
     A decorator to allow authentication to be performed
@@ -36,3 +38,22 @@ class HttpStatus:
     EXISTS = 302
     NOT_FOUND = 404
 
+def digest_file(filelike, f=None):
+    """
+    Computes an appropriate digest for a filelike object.
+    In addition to computing the digest, f is called for
+    each block of data read from the file.
+    
+    This is useful when the data is coming from a socket,
+    as we can put the file somewhere else as we read through.
+    
+    returns a tuple (algorithm, hex)
+    """
+    digest = hashlib.md5()
+    block_size = 1024
+    chunk = filelike.read(block_size)
+    while chunk:
+        digest.update(chunk)
+        if f:
+            f(chunk)
+    return (digest.name, digest.hexdigest())

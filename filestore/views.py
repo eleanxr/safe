@@ -4,14 +4,17 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 
 from django.core.urlresolvers import reverse
+from django.core.files import File
+
+from django.db.models.fields.files import FieldFile
 
 from django.http import HttpResponse, HttpResponseRedirect
 
 from django.views.decorators.csrf import csrf_exempt
 
-from filestore.models import PublicKeyFile, FileMetadata, EncryptedFileContent
+from filestore.models import PublicKeyFile, FileMetadata, EncryptedFileContent, StoredFile
 from filestore.forms import FileUploadForm
-from filestore.util import http_basic_auth, HttpStatus
+from filestore.util import http_basic_auth, HttpStatus, digest_file
 
 def loginpage(request):
     return render(request, 'filestore/login.html', {})
@@ -31,10 +34,18 @@ def do_login(request):
 
 @login_required
 def list_files(request):
-    file_list = EncryptedFileContent.objects.filter(user=request.user)
+    file_list = StoredFile.objects.filter(user=request.user)
+    # Build a list with the important information.
+    files = []
+    for item in file_list:
+        files.append({
+            'path': '%s/%s' % (item.path, item.filename),
+            'plaintext_digest': item.metadata.plaintext_digest,
+            'download_url': item.encrypted_content.data.url,
+        })
     context = {
         'user': request.user,
-        'file_list': file_list,
+        'files': files,
         }
     return render(request, 'filestore/filelist.html', context)
 
@@ -71,32 +82,43 @@ def upload_file(request):
     }) 
 
 def __handle_upload(request):
-    filename = request.FILES['encrypted_content'].name
-    digest = request.POST['digest']
-    digest_algorithm = request.POST['digest_algorithm']
+    plaintext_digest = request.POST['plaintext_digest']
+    plaintext_digest_algorithm = request.POST['plaintext_digest_algorithm']
+    path = request.POST['path']
+    name = request.POST['name']
     
-    file_exists = FileMetadata.objects.filter(
-        digest_algorithm=digest_algorithm,
-        digest=digest
-    )
+    # Look for existing metadata
+    try:
+        metadata = FileMetadata.objects.get(
+            plaintext_digest_algorithm=plaintext_digest_algorithm,
+            plaintext_digest=plaintext_digest
+        )
+    except FileMetadata.DoesNotExist:
+        # Create a new one and save it
+        metadata = FileMetadata(
+            plaintext_digest = plaintext_digest,
+            plaintext_digest_algorithm = plaintext_digest_algorithm
+        )
+        metadata.save()
 
-    # If we already have an entry for that digest, don't replicate it
-    if file_exists:
-        return HttpResponse(content="Object exists", status=HttpStatus.EXISTS)
-
-    # A file of that digest/algorithm combination doesn't exist.
-    metadata = FileMetadata(
-        filename=filename,
-        digest=digest,
-        digest_algorithm=digest_algorithm
-    )
-
-    metadata.save()
+    try:
+        stored_data = EncryptedFileContent.objects.get(metadata = metadata, user = request.user)
+    except EncryptedFileContent.DoesNotExist:
+        stored_data = EncryptedFileContent(
+            user = request.user,
+            metadata = metadata,
+            data = request.FILES['encrypted_content']
+        )
+        stored_data.save()
     
-    data = EncryptedFileContent(
-        user=request.user,
-        metadata=metadata,
-        data_store=request.FILES['encrypted_content']
+    new_file = StoredFile(
+        user = request.user,
+        metadata = metadata,
+        encrypted_content = stored_data,
+        path = path,
+        filename = name
     )
-    data.save()
+    
+    new_file.save()
+    
     return HttpResponseRedirect(reverse('filestore:list_files'))
